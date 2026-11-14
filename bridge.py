@@ -6,6 +6,8 @@
     python3 bridge.py --say "okay, locking up"    typed words, no band and no Deepgram key
 
 A tap on the band answers the latest nudge, so it stops escalating to the family.
+It runs until Ctrl+C: a dropped link comes back by itself, a closed Deepgram connection is
+opened again, and a band out of range is looked for until it is double-tapped again.
 
 Needs: python3 -m pip install bleak   (Bluetooth), and DEEPGRAM_API_KEY in .env or the
 environment. Start the backend first: uvicorn main:app --app-dir Backend --port 8000
@@ -22,7 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent / "vexo-open-kit" / "examples" / "python"))
 import kit      # finds the library and reads the command line  # noqa: E402
 import speech   # sound -> Deepgram                               # noqa: E402
-from vexo_open.sync import Band  # noqa: E402
+from vexo_open.sync import Band, VexoError  # noqa: E402
 
 import argparse  # noqa: E402
 
@@ -80,26 +82,90 @@ if opts.say:                                    # typed words: no band needed
 
 if opts.transport == "sim" and opts.seconds is None:
     opts.seconds = 60                           # kit.voice() cuts this to the length of the sample recording
-band = Band.connect(opts.number, transport=opts.transport, **kit.voice(opts))
-print("Connected to", kit.plain(band.name), "- listening. Tap the band to answer a nudge. Ctrl+C to stop.")
-band.on("tap", lambda e: outbox.put(("/ack", {})))
 
-ears = speech.create().start(heard)
-band.on("audio", ears.feed)
-band.configure(audio=True, events=True)         # the light goes solid blue: the microphone is on
+live = {"band": None, "ears": None, "gone": threading.Event()}
+stopping = threading.Event()
+
+
+def feed(a):
+    """Sound to whichever Deepgram connection is open right now."""
+    ears = live["ears"]
+    if ears is not None:
+        try:
+            ears.feed(a)
+        except Exception:
+            pass                                # it closed: the loop below opens a new one
+
+
+def open_ears():
+    """A Deepgram connection. If the network is down, keep trying every 5 seconds."""
+    while not stopping.is_set():
+        try:
+            live["ears"] = speech.create().start(heard)
+            return
+        except Exception as error:
+            print("Deepgram not reachable (%s). Trying again in 5 s." % error, flush=True)
+            stopping.wait(5)
+
+
+def connect():
+    """Connects to the band, and keeps asking for a double-tap until it is found."""
+    while not stopping.is_set():
+        try:
+            band = Band.connect(opts.number, transport=opts.transport, auto_reconnect=opts.transport != "sim",
+                                reconnect_seconds=120, **kit.voice(opts))
+        except VexoError as error:
+            print("Band not found (%s). Double-tap the band; trying again in 5 s." % error.code, flush=True)
+            stopping.wait(5)
+            continue
+        live["gone"].clear()
+        band.on("tap", lambda e: outbox.put(("/ack", {})))
+        band.on("reconnecting", lambda e: print("Link lost. Getting it back (up to %d s, no tap needed)..." % e.seconds, flush=True))
+        band.on("reconnected", lambda e: print("Link back after %.0f s. Listening again." % e.seconds, flush=True))
+        band.on("disconnect", lambda e: live["gone"].set())
+        band.on("battery", lambda e: e.percent is not None and e.percent <= 20 and not e.charging and
+                print("Battery low: %d%%. Plug the band in soon." % e.percent, flush=True))
+        band.on("audio", feed)
+        band.configure(audio=True, events=True, battery=True)   # the light goes solid blue: the microphone is on
+        live["band"] = band
+        print("Connected to", kit.plain(band.name), "- listening. Tap the band to answer a nudge. Ctrl+C to stop.",
+              flush=True)
+        return band
+
+
 try:
+    open_ears()
+    connect()
     left = (opts.seconds + 2) if opts.seconds else float("inf")
     while left > 0:                             # short waits, so Ctrl+C stops it within a second
+        band = live["band"]
         band.wait(min(1, left))
         left -= 1
+        ears = live["ears"]
+        if ears is not None and ears._done.is_set():          # Deepgram hung up: open a new connection
+            print("Deepgram connection closed. Opening a new one...", flush=True)
+            open_ears()
+        if live["gone"].is_set():               # the band gave up reconnecting (out of range, switched off)
+            if opts.transport == "sim":
+                break
+            print("Band disconnected. Bring it close and double-tap it.", flush=True)
+            connect()
 except KeyboardInterrupt:
     pass
 finally:
+    stopping.set()
     print("Stopping...", flush=True)
 
     def close():
-        for step in (lambda: band.configure(audio=False), lambda: band.off("audio", ears.feed),
-                     lambda: ears.stop(wait=2), band.disconnect):
+        band, ears = live["band"], live["ears"]
+        steps = []
+        if band is not None:
+            steps += [lambda: band.configure(audio=False), lambda: band.off("audio", feed)]
+        if ears is not None:
+            steps.append(lambda: ears.stop(wait=2))
+        if band is not None:
+            steps.append(band.disconnect)
+        for step in steps:
             try:
                 step()
             except BaseException:

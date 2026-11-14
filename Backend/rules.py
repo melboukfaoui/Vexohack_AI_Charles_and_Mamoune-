@@ -23,6 +23,7 @@ CONFIG = {
     "restaurant_items": ["phone", "wallet", "glasses"],
     "item_window_min": 15,       # "got my phone" this recent counts at the table
     "double_dose_hours": 12,     # a second dose inside this window is a double dose
+    "quiet_min": 0,              # minutes before the same door / restaurant reminder repeats (0 = every time)
 }
 
 
@@ -67,7 +68,7 @@ def on_event(event: dict):
 
     elif kind == "leaving_home":
         locked = store.last_event("door_locked", since=minutes_ago(CONFIG["door_window_min"]))
-        if not locked and not store.nudged("door", since=minutes_ago(CONFIG["door_window_min"])):
+        if not locked and not store.nudged("door", since=minutes_ago(CONFIG["quiet_min"])):
             nudge("door", "You haven't locked the front door yet.", key="door")
         stove = store.last_event("stove_on", since=minutes_ago(180))
         if stove and not store.last_event("stove_off", since=datetime.fromisoformat(stove["ts"])):
@@ -77,7 +78,7 @@ def on_event(event: dict):
     elif kind in ("check_requested", "goodbye"):
         if kind == "goodbye" and not store.last_event("check_requested", since=minutes_ago(30)):
             return     # a goodbye at home is not leaving a restaurant
-        if store.nudged("restaurant", since=minutes_ago(30)):
+        if store.nudged("restaurant", since=minutes_ago(CONFIG["quiet_min"])):
             return     # already reminded at this meal
         window = minutes_ago(CONFIG["item_window_min"])
         missing = [i for i in CONFIG["restaurant_items"] if not store.last_event("item_confirmed", since=window, item=i)]

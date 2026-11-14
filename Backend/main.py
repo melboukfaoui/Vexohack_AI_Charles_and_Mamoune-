@@ -237,6 +237,7 @@ def demo_start(body: DemoInput):
     rules.CONFIG["pill_grace_min"] = 0
     rules.CONFIG["pill_escalate_min"] = body.escalate_after_min
     rules.CONFIG["no_reply_min"] = body.escalate_after_min
+    rules.CONFIG["quiet_min"] = 0          # every time a line is said, the reminder goes out
     hub.publish("config", rules.CONFIG)
     return {"pill_due": due.strftime("%H:%M"), "config": rules.CONFIG}
 
@@ -255,6 +256,7 @@ class ConfigInput(BaseModel):
     no_reply_min: Optional[float] = None
     stove_min: Optional[float] = None
     restaurant_items: Optional[list] = None
+    quiet_min: Optional[float] = None
 
 
 @app.put("/config")
