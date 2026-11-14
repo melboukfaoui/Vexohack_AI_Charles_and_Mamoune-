@@ -12,6 +12,7 @@ environment. Start the backend first: uvicorn main:app --app-dir Backend --port 
 Everything the microphone hears is sent to Deepgram: tell the people near the band.
 """
 import json
+import os
 import queue
 import sys
 import threading
@@ -87,16 +88,27 @@ ears = speech.create().start(heard)
 band.on("audio", ears.feed)
 band.configure(audio=True, events=True)         # the light goes solid blue: the microphone is on
 try:
-    if opts.seconds:
-        band.wait(opts.seconds + 2)
-    else:
-        while True:
-            band.wait(1)
+    left = (opts.seconds + 2) if opts.seconds else float("inf")
+    while left > 0:                             # short waits, so Ctrl+C stops it within a second
+        band.wait(min(1, left))
+        left -= 1
 except KeyboardInterrupt:
     pass
 finally:
-    band.configure(audio=False)
-    band.off("audio", ears.feed)
-    ears.stop()
-    outbox.join()
-    band.disconnect()
+    print("Stopping...", flush=True)
+
+    def close():
+        for step in (lambda: band.configure(audio=False), lambda: band.off("audio", ears.feed),
+                     lambda: ears.stop(wait=2), band.disconnect):
+            try:
+                step()
+            except BaseException:
+                pass
+
+    closer = threading.Thread(target=close, daemon=True)
+    closer.start()
+    closer.join(8)                              # never hang on the way out
+    print("Stopped. The band's light turns off." if not closer.is_alive() else
+          "Stopped (the band did not answer; restart it if the light stays blue).")
+    sys.stdout.flush()
+    os._exit(0)
