@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 import detector
+import notify
 import qa
 import rules
 import voice
@@ -99,7 +100,9 @@ def home():
 
 @app.get("/health")
 def health():
-    return {"ok": True, "ai": detector.ai_available(), "voice": bool(voice.key())}
+    t = notify.topics()
+    return {"ok": True, "ai": detector.ai_available(), "voice": bool(voice.key()),
+            "phone": bool(t["wearer"]), "family_phone": bool(t["family"])}
 
 
 @app.get("/state")

@@ -9,6 +9,8 @@ import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import notify
+
 DB_PATH = Path(__file__).resolve().parent / "memory.db"
 
 
@@ -82,7 +84,9 @@ class Store:
                             item=item, place=place, detector=detector)
 
     def add_nudge(self, rule: str, audience: str, text: str, key: str = None) -> dict:
-        return self._insert("nudges", "nudge", rule=rule, audience=audience, text=text, key=key)
+        row = self._insert("nudges", "nudge", rule=rule, audience=audience, text=text, key=key)
+        notify.send(row)          # every reminder, answer and alert goes to a phone
+        return row
 
     def resolve(self, rule: str = None, nudge_id: int = None):
         """Marks open nudges as answered (the wearer did the thing, or tapped the band)."""

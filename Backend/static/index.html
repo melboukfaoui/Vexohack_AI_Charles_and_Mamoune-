@@ -74,7 +74,6 @@
 
 <div class="controls">
   <button class="primary" id="start">Start demo (pill due in 2 min)</button>
-  <button id="sound">Voice: off</button>
   <button id="reset">Clear</button>
   <form id="say">
     <input id="text" placeholder="Type what the wearer says, like “okay, locking up”" autocomplete="off">
@@ -86,8 +85,8 @@
 <main>
   <section><h2>Heard by the band</h2><ol id="transcripts"></ol></section>
   <section><h2>Memory timeline</h2><ol id="events"></ol></section>
-  <section><h2>Spoken to Margaret</h2><ol id="wearer"></ol></section>
-  <section><h2>Family alerts</h2><ol id="family"></ol></section>
+  <section><h2>Sent to Margaret's phone</h2><ol id="wearer"></ol></section>
+  <section><h2>Family phone alerts</h2><ol id="family"></ol></section>
 </main>
 
 <script>
@@ -105,9 +104,6 @@ const LABELS = {
 };
 const $ = (id) => document.getElementById(id);
 const seen = new Set();
-let voiceOn = false;
-const speakQueue = [];
-let speaking = false;
 
 const time = (ts) => new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -137,33 +133,6 @@ function render(kind, row, live) {
       `<time>${time(row.ts)}</time>${esc(row.text)}<span class="rule">${esc(row.rule.replaceAll("_", " "))}</span>`,
       (fam ? "family" : "nudge" + (row.rule === "answer" ? " answer" : "")) + (row.resolved ? " resolved" : ""),
       "nudge-" + row.id);
-    if (!fam && live) say(row);
-  }
-}
-
-function say(row) {
-  if (!voiceOn) return;
-  speakQueue.push(row);
-  if (!speaking) next();
-}
-
-async function next() {
-  const row = speakQueue.shift();
-  if (!row) { speaking = false; return; }
-  speaking = true;
-  try {
-    const r = await fetch(`/nudges/${row.id}/audio`);
-    if (!r.ok) throw new Error("no voice");
-    const audio = new Audio(URL.createObjectURL(await r.blob()));
-    audio.onended = next;
-    audio.onerror = next;
-    await audio.play();
-  } catch (e) {          // no ElevenLabs key: the browser's own voice
-    const u = new SpeechSynthesisUtterance(row.text);
-    u.rate = 0.92;
-    u.onend = next;
-    u.onerror = next;
-    speechSynthesis.speak(u);
   }
 }
 
@@ -185,8 +154,8 @@ async function load() {
   const h = await (await fetch("/health")).json();
   $("ai").textContent = h.ai ? "AI detector on" : "keywords only";
   $("ai").classList.toggle("on", h.ai);
-  $("voice").textContent = h.voice ? "ElevenLabs voice" : "browser voice";
-  $("voice").classList.toggle("on", h.voice);
+  $("voice").textContent = h.phone ? "phone alerts on" : "phone alerts off";
+  $("voice").classList.toggle("on", h.phone);
 }
 
 function connect() {
@@ -216,17 +185,7 @@ async function post(url, body) {
   return fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
 }
 
-function enableVoice() {
-  voiceOn = true;
-  $("sound").textContent = "Voice: on";
-  speechSynthesis.speak(new SpeechSynthesisUtterance(""));   // unlocks audio after a click
-}
-
-$("start").onclick = async () => { enableVoice(); await post("/demo/start", { pill_in_min: 2 }); };
-$("sound").onclick = () => {
-  if (voiceOn) { voiceOn = false; $("sound").textContent = "Voice: off"; speechSynthesis.cancel(); }
-  else enableVoice();
-};
+$("start").onclick = () => post("/demo/start", { pill_in_min: 2 });
 $("reset").onclick = () => post("/demo/reset");
 $("say").onsubmit = async (e) => {
   e.preventDefault();
