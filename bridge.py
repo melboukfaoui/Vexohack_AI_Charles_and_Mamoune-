@@ -77,6 +77,8 @@ if opts.say:                                    # typed words: no band needed
     outbox.join()
     sys.exit(0)
 
+if opts.transport == "sim" and opts.seconds is None:
+    opts.seconds = 60                           # kit.voice() cuts this to the length of the sample recording
 band = Band.connect(opts.number, transport=opts.transport, **kit.voice(opts))
 print("Connected to", kit.plain(band.name), "- listening. Tap the band to answer a nudge. Ctrl+C to stop.")
 band.on("tap", lambda e: outbox.put(("/ack", {})))

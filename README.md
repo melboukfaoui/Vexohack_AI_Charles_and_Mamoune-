@@ -25,7 +25,7 @@ band mic --Bluetooth--> bridge.py --Deepgram--> POST /transcripts
 git clone https://github.com/VexoAI-Org/vexo-open-kit.git   # once; it is in .gitignore
 python3 -m pip install -r Backend/requirements.txt
 cp env.example .env                                          # then paste the team's keys
-python3 -m uvicorn main:app --app-dir Backend --port 8000    # from this folder
+python3 -m uvicorn main:app --app-dir Backend --port 8000 --reload --reload-dir Backend --timeout-graceful-shutdown 1
 ```
 
 Open http://127.0.0.1:8000, then in a second terminal (double-tap the band first):
