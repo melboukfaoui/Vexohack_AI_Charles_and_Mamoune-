@@ -76,8 +76,12 @@ def on_event(event: dict):
                   key="stove:%d" % stove["id"])
 
     elif kind in ("check_requested", "goodbye"):
-        if kind == "goodbye" and not store.last_event("check_requested", since=minutes_ago(30)):
-            return     # a goodbye at home is not leaving a restaurant
+        if kind == "goodbye":
+            check = store.last_event("check_requested", since=minutes_ago(30))
+            if not check:
+                return     # a goodbye at home is not leaving a restaurant
+            if store.nudged("restaurant", since=datetime.fromisoformat(check["ts"])):
+                return     # the check already got its reminder: the goodbye is the same meal
         if store.nudged("restaurant", since=minutes_ago(CONFIG["quiet_min"])):
             return     # already reminded at this meal
         window = minutes_ago(CONFIG["item_window_min"])
