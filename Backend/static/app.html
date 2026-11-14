@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Memory Band</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon.png">
+<link rel="icon" href="/icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Memory Band">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#2f6f62">
+<style>
+  :root {
+    --bg: #f6f4ef; --panel: #ffffff; --ink: #1d1f24; --muted: #646872; --line: #e4e0d6;
+    --accent: #2f6f62; --accent-ink: #ffffff; --accent-soft: #e3efeb;
+    --warn: #a6481f; --warn-soft: #fbe9df; --family: #5a4fa3; --family-soft: #ebe8f7; --chip: #efece5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15171b; --panel: #1f2227; --ink: #eceae4; --muted: #a0a4ad; --line: #2e3239;
+      --accent: #6cc3ad; --accent-ink: #10201c; --accent-soft: #1f3530;
+      --warn: #f2a47c; --warn-soft: #3a2820; --family: #b2a8f2; --family-soft: #2a2740; --chip: #282b32;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body { font: 18px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         padding: env(safe-area-inset-top) 0 calc(76px + env(safe-area-inset-bottom)); }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px; }
+  header h1 { font-size: 22px; margin: 0; display: flex; align-items: center; gap: 10px; }
+  header img { width: 32px; height: 32px; border-radius: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); display: inline-block; }
+  .dot.on { background: #3fa37f; }
+  .view { display: none; padding: 0 16px; }
+  .view.on { display: block; }
+  .hero { background: var(--warn-soft); border-radius: 20px; padding: 20px; margin: 8px 0 16px; }
+  .hero.answer { background: var(--accent-soft); }
+  .hero.calm { background: var(--panel); border: 1px solid var(--line); }
+  .hero small { display: block; color: var(--muted); font-size: 14px; margin-bottom: 6px; }
+  .hero p { font-size: 26px; line-height: 1.3; margin: 0 0 16px; font-weight: 600; }
+  .hero.calm p { font-size: 22px; font-weight: 500; margin: 0; }
+  .big { width: 100%; font: inherit; font-size: 20px; font-weight: 600; border: 0; border-radius: 14px;
+         padding: 16px; background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 22px 0 10px; }
+  .asks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .asks button { font: inherit; font-size: 17px; text-align: left; padding: 14px; border-radius: 14px;
+                 border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; min-height: 64px; }
+  form { display: flex; gap: 8px; margin-top: 10px; }
+  input { flex: 1; min-width: 0; font: inherit; font-size: 18px; padding: 14px; border-radius: 14px;
+          border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+  form button { font: inherit; font-weight: 600; border: 0; border-radius: 14px; padding: 0 18px;
+                background: var(--accent); color: var(--accent-ink); }
+  ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  li { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+  li time { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; margin-right: 8px; }
+  li .q { display: block; color: var(--muted); font-size: 15px; margin-top: 2px; }
+  li.alert { background: var(--family-soft); border-color: transparent; }
+  li.warn { background: var(--warn-soft); border-color: transparent; }
+  li.done { opacity: .55; }
+  .empty { color: var(--muted); font-size: 16px; padding: 8px 2px; }
+  nav { position: fixed; left: 0; right: 0; bottom: 0; display: flex; background: var(--panel);
+        border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+  nav button { flex: 1; font: inherit; font-size: 16px; font-weight: 600; border: 0; background: none;
+               color: var(--muted); padding: 14px 0 16px; cursor: pointer; }
+  nav button.on { color: var(--accent); box-shadow: inset 0 3px 0 var(--accent); }
+  .tip { font-size: 15px; color: var(--muted); background: var(--chip); border-radius: 14px; padding: 12px 14px; margin-top: 18px; }
+</style>
+</head>
+<body>
+<header>
+  <h1><img src="/icon.png" alt="">Memory Band</h1>
+  <span class="dot" id="dot" title="live"></span>
+</header>
+
+<section class="view on" id="me">
+  <div class="hero calm" id="hero"><small>All good</small><p>Nothing to remember right now.</p></div>
+
+  <h2>Ask me</h2>
+  <div class="asks">
+    <button data-q="Did I lock the door?">Did I lock the door?</button>
+    <button data-q="Did I take my pill?">Did I take my pill?</button>
+    <button data-q="Where are my glasses?">Where are my glasses?</button>
+    <button data-q="Did I turn off the stove?">Did I turn off the stove?</button>
+  </div>
+  <form id="ask"><input id="q" placeholder="Ask anything…" autocomplete="off"><button>Ask</button></form>
+
+  <h2>Today</h2>
+  <ol id="today"></ol>
+</section>
+
+<section class="view" id="family">
+  <h2>Alerts</h2>
+  <ol id="alerts"></ol>
+  <h2>Mom's day</h2>
+  <ol id="day"></ol>
+</section>
+
+<nav>
+  <button class="on" data-view="me">Me</button>
+  <button data-view="family">Family</button>
+</nav>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const time = (ts) => new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+
+const SAY = {
+  pill_taken: "You took your pill", pill_intent: "You were about to take your pill",
+  pill_repeat: "Second pill stopped", door_locked: "You locked the door", leaving_home: "You left home",
+  check_requested: "You asked for the check", goodbye: "You said goodbye", item_confirmed: "You had your",
+  item_placed: "You put your", stove_on: "You turned the stove on", stove_off: "You turned the stove off",
+};
+
+let state = { events: [], nudges: [] };
+
+function eventLine(e, family) {
+  let text = SAY[e.type] || e.type;
+  if (e.type === "item_confirmed") text += " " + e.item;
+  if (e.type === "item_placed") text += " " + e.item + (e.place ? " on the " + e.place : "");
+  // The family reads it about Mom: "Mom took her pill".
+  return family ? text.replace(/^You /, "Mom ").replace(/\byour\b/g, "her").replace(/\bwere\b/, "was") : text;
+}
+
+function render() {
+  const since = today0();
+  const events = state.events.filter((e) => e.type !== "question" && new Date(e.ts) >= since).reverse();
+  const mine = state.nudges.filter((n) => n.audience === "wearer");
+  const alerts = state.nudges.filter((n) => n.audience === "family").reverse();
+
+  // The latest thing said to the wearer, as one big card.
+  const latest = mine[mine.length - 1];
+  const hero = $("hero");
+  if (latest && !latest.resolved && Date.now() - new Date(latest.ts) < 30 * 60 * 1000) {
+    const answer = latest.rule === "answer";
+    hero.className = "hero" + (answer ? " answer" : "");
+    hero.innerHTML = `<small>${answer ? "Answer" : "Reminder"} · ${time(latest.ts)}</small><p>${esc(latest.text)}</p>
+      <button class="big" id="ok">${answer ? "Thanks" : "OK, done"}</button>`;
+    $("ok").onclick = () => ack(latest.id);
+  } else {
+    hero.className = "hero calm";
+    hero.innerHTML = `<small>All good</small><p>Nothing to remember right now.</p>`;
+  }
+
+  const lines = (list, family) => list.length ? list.map((e) =>
+    `<li><time>${time(e.ts)}</time>${esc(eventLine(e, family))}<span class="q">“${esc(e.quote)}”</span></li>`).join("")
+    : `<li class="empty">Nothing heard yet today.</li>`;
+  $("today").innerHTML = lines(events);
+  $("day").innerHTML = lines(events, true);
+  $("alerts").innerHTML = alerts.length ? alerts.map((n) =>
+    `<li class="alert${n.resolved ? " done" : ""}"><time>${time(n.ts)}</time>${esc(n.text)}</li>`).join("")
+    : `<li class="empty">No alerts. Everything is fine.</li>`;
+}
+
+async function load() {
+  const r = await fetch("/state", { credentials: "same-origin" });
+  if (!r.ok) { document.body.innerHTML = `<p style="padding:24px">${esc(await r.text())}</p>`; return; }
+  const s = await r.json();
+  state = { events: s.events, nudges: s.nudges };
+  render();
+}
+
+function upsert(list, row) {
+  const i = list.findIndex((x) => x.id === row.id);
+  if (i >= 0) list[i] = row; else list.push(row);
+}
+
+function connect() {
+  const es = new EventSource("/stream");
+  es.addEventListener("hello", () => { $("dot").classList.add("on"); load(); });
+  es.onmessage = (m) => {
+    const { kind, row } = JSON.parse(m.data);
+    if (kind === "event" || kind === "event_changed") upsert(state.events, row);
+    else if (kind === "nudge") upsert(state.nudges, row);
+    else if (kind === "reset" || kind === "resolved") return load();
+    else return;
+    render();
+  };
+  es.onerror = () => $("dot").classList.remove("on");
+}
+
+async function ack(id) {
+  await fetch("/ack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nudge_id: id }) });
+}
+
+async function ask(text) {
+  if (!text.trim()) return;
+  await fetch("/transcripts", { method: "POST", headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ text, source: "phone" }) });
+}
+
+document.querySelectorAll(".asks button").forEach((b) => (b.onclick = () => ask(b.dataset.q)));
+$("ask").onsubmit = (e) => { e.preventDefault(); ask($("q").value); $("q").value = ""; };
+
+function show(view) {
+  document.querySelectorAll(".view").forEach((v) => v.classList.toggle("on", v.id === view));
+  document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("on", b.dataset.view === view));
+  try { localStorage.setItem("mb-view", view); } catch (e) {}
+}
+document.querySelectorAll("nav button").forEach((b) => (b.onclick = () => show(b.dataset.view)));
+try { const v = localStorage.getItem("mb-view"); if (v) show(v); } catch (e) {}
+
+// The key stays in the address: a home-screen icon keeps its own cookies (iPhone),
+// so the icon must open /app?key=... itself. The manifest carries it for Android.
+const key = new URLSearchParams(location.search).get("key");
+if (key) document.querySelector('link[rel="manifest"]').href = "/manifest.json?key=" + encodeURIComponent(key);
+connect();
+</script>
+</body>
+</html>

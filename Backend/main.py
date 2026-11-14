@@ -9,6 +9,9 @@ Run from the project folder (so .env is found):
 then open http://127.0.0.1:8000
 """
 import asyncio
+import json
+import secrets
+import socket
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
@@ -49,6 +52,28 @@ async def lifespan(app):
 
 
 app = FastAPI(title="Memory Band", lifespan=lifespan)
+
+LOCAL = {"127.0.0.1", "::1", "localhost"}
+OPEN_PATHS = {"/manifest.json", "/icon.png"}
+
+
+@app.middleware("http")
+async def phone_key(request: Request, call_next):
+    """The laptop is always let in. Anything else on the Wi-Fi (your phone) needs the
+    APP_KEY from .env, which the QR code on the live page carries. A right key in the
+    address is remembered in a cookie, so the home-screen icon keeps working."""
+    if request.client and request.client.host in LOCAL or request.url.path in OPEN_PATHS:
+        return await call_next(request)
+    key = notify.setting("APP_KEY")
+    given = request.query_params.get("key")
+    if key and secrets.compare_digest(request.cookies.get("mb_key", ""), key):
+        return await call_next(request)
+    if key and given and secrets.compare_digest(given, key):
+        response = await call_next(request)
+        response.set_cookie("mb_key", key, max_age=60 * 60 * 24 * 30, httponly=True, samesite="lax")
+        return response
+    return Response("This Memory Band is private. Scan the QR code on the laptop to open it.",
+                    status_code=403, media_type="text/plain")
 
 
 # -- what the band heard ------------------------------------------------------------------------
@@ -96,6 +121,47 @@ def get_memories():
 @app.get("/")
 def home():
     return FileResponse(STATIC / "index.html")
+
+
+@app.get("/app")
+def phone_app():
+    return FileResponse(STATIC / "app.html")
+
+
+@app.get("/manifest.json")
+def manifest(key: str = ""):
+    """The home-screen description. With the right key, the icon opens the app with it."""
+    data = json.loads((STATIC / "manifest.json").read_text())
+    real = notify.setting("APP_KEY")
+    if real and key and secrets.compare_digest(key, real):
+        data["start_url"] = "/app?key=" + key
+    return Response(json.dumps(data), media_type="application/manifest+json")
+
+
+@app.get("/icon.png")
+def icon():
+    return FileResponse(STATIC / "icon.png", media_type="image/png")
+
+
+def wifi_address() -> str:
+    """This laptop's address on the Wi-Fi, for the phone to reach it."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("10.255.255.255", 1))          # no packet is sent; it only picks the network card
+        return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+    finally:
+        s.close()
+
+
+@app.get("/phone-link")
+def phone_link(request: Request):
+    """The address the phone opens (laptop only: it carries the key)."""
+    if not (request.client and request.client.host in LOCAL):
+        raise HTTPException(403, "Laptop only")
+    port = request.url.port or 8000
+    return {"url": "http://%s:%d/app?key=%s" % (wifi_address(), port, notify.setting("APP_KEY"))}
 
 
 @app.get("/health")

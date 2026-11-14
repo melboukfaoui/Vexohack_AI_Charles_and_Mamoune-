@@ -25,7 +25,7 @@ band mic --Bluetooth--> bridge.py --Deepgram--> POST /transcripts
 git clone https://github.com/VexoAI-Org/vexo-open-kit.git   # once; it is in .gitignore
 python3 -m pip install -r Backend/requirements.txt
 cp env.example .env                                          # then paste the team's keys
-python3 -m uvicorn main:app --app-dir Backend --port 8000 --reload --reload-dir Backend --timeout-graceful-shutdown 1
+python3 -m uvicorn main:app --app-dir Backend --host 0.0.0.0 --port 8000 --reload --reload-dir Backend --timeout-graceful-shutdown 1
 ```
 
 Open http://127.0.0.1:8000, then in a second terminal (double-tap the band first):
@@ -37,6 +37,18 @@ python3 bridge.py <band number from the bag>
 No band, or no Deepgram key: type sentences on the live screen, or
 `python3 bridge.py --say "okay, locking up"`. Keys that are missing just switch features
 off: no OpenAI key means keywords only, no ElevenLabs key means the browser's voice.
+
+## The phone app
+
+1. Phone and laptop on the same Wi-Fi (if the event Wi-Fi blocks it, use the phone's hotspot).
+2. On the live page, press **Open on phone** and scan the QR code with the phone's camera.
+3. iPhone: Share → **Add to Home Screen**. Android: ⋮ → **Add to Home screen**.
+4. Reminders still arrive as notifications through the **ntfy** app (channel names in `.env`).
+
+The **Me** tab shows the latest reminder in big text, quick questions and today's timeline;
+**Family** shows the alerts and Mom's day. Only the laptop and phones with the key in
+`.env` (`APP_KEY`, carried by the QR code) can open it. If macOS asks whether Python may
+accept incoming connections, click **Allow**.
 
 ## Demo (2 minutes)
 
