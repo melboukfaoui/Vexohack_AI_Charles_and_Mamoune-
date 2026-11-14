@@ -16,6 +16,7 @@ Everything the microphone hears is sent to Deepgram: tell the people near the ba
 import json
 import os
 import queue
+import signal
 import sys
 import threading
 import urllib.request
@@ -109,6 +110,15 @@ live = {"band": None, "ears": None, "gone": threading.Event()}
 stopping = threading.Event()
 
 
+def on_ctrl_c(signum, frame):
+    # The band library ends band.wait() quietly on Ctrl+C, so remember it here too.
+    stopping.set()
+    raise KeyboardInterrupt
+
+
+signal.signal(signal.SIGINT, on_ctrl_c)
+
+
 def feed(a):
     """Sound to whichever Deepgram connection is open right now."""
     ears = live["ears"]
@@ -159,7 +169,7 @@ try:
     open_ears()
     connect()
     left = (opts.seconds + 2) if opts.seconds else float("inf")
-    while left > 0:                             # short waits, so Ctrl+C stops it within a second
+    while left > 0 and not stopping.is_set():   # short waits, so Ctrl+C stops it within a second
         band = live["band"]
         band.wait(min(1, left))
         left -= 1
@@ -167,6 +177,8 @@ try:
         if ears is not None and ears._done.is_set():          # Deepgram hung up: open a new connection
             print("Deepgram connection closed. Opening a new one...", flush=True)
             open_ears()
+        if stopping.is_set():
+            break
         if live["gone"].is_set():               # the band gave up reconnecting (out of range, switched off)
             if opts.transport == "sim":
                 break
