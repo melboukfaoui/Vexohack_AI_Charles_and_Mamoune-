@@ -30,14 +30,17 @@ NOT = r"(?<!n't )(?<!not )(?<!never )"
 
 PATTERNS = [
     ("pill_intent", re.compile(r"\b(time for|time to take|should take|let me take|gonna take|going to take|need to take)"
-                               r" (my |the )?(\w+ ){0,3}(pills?|meds?|medication|medicine|tablets?)\b")),
-    ("pill_taken", re.compile(NOT + r"\b(took|taking|taken|had|swallowed) (my |the )?(\w+ ){0,3}"
-                              r"(pills?|meds?|medication|medicine|tablets?)\b")),
+                               r" (my |the )?(\w+ ){0,3}(pills?|meds?|medication|medicine|tablets?|vitamins?)\b|\b(pill|medication|medicine) time\b")),
+    ("pill_taken", re.compile(NOT + r"\b(took|taking|taken|had|swallowed|swallowing|just took|popped) (my |the |a |one )?(\w+ ){0,3}"
+                              r"(pills?|meds?|medication|medicine|tablets?|vitamins?)\b")),
     ("pill_taken", re.compile(r"\b(pills?|meds?|medication|medicine) (are |is )?(done|taken)\b")),
-    ("door_locked", re.compile(NOT + r"\b(lock(ing|ed)? up|lock(ing|ed)? the (front |back )?door|door('s| is) locked)\b")),
-    ("leaving_home", re.compile(r"\b(heading out|head(ing)? to the|going out|off to the|leaving (now|the house|home)|"
-                                r"going for a walk|on my way out|i'm off)\b")),
-    ("check_requested", re.compile(r"\b(get|have|bring( us)?) the (check|bill)\b|\bcheck,? please\b|\bbill,? please\b")),
+    ("door_locked", re.compile(NOT + r"\b(lock(ing|ed)? up|lock(ing|ed)? the (front |back |house )?door|door('s| is) locked|"
+                              r"(i |i've |i have )?locked (it|the house))\b")),
+    ("leaving_home", re.compile(r"\b(heading out|head(ing)? (to|over to) the|going out|off to the|leaving(?! (my|your|her|his|it|them|the (glasses|keys|phone|wallet|cane)))( now| the house| home)?|"
+                                r"going for a walk|on my way out|i'm off|(i'm|i am) going to the (store|shop|shops|market|doctor|bank|park)|"
+                                r"see you later|i'll be back|be right back|going shopping)\b")),
+    ("check_requested", re.compile(r"\b(get|have|bring( us)?|pay|see) the (check|bill|tab)\b|\b(check|bill),? please\b|"
+                                   r"\b(can|could|may) (i|we) pay\b|\bpay (by|with) card\b|\bhow much (do|did) (i|we) owe\b")),
     ("goodbye", re.compile(r"\b(have a (good|nice|great) (day|night|evening)|goodbye|bye now|see you (later|soon))\b")),
     ("stove_on", re.compile(r"\b(put|putting) the kettle on\b|\bturn(ing|ed)? on the (stove|oven|burner|hob)\b|"
                             r"\b(start|starting) (the )?(soup|dinner|cooking)\b")),

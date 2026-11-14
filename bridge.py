@@ -69,10 +69,32 @@ def sender():
 threading.Thread(target=sender, daemon=True).start()
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "Backend"))
+import detector  # noqa: E402  (the backend's own patterns: the same words trigger here)
+
+early = {"sent": None}      # the sentence already sent early, while it was still being spoken
+
+
 def heard(text, final):
-    if final and text.strip():
-        print("heard:", kit.plain(text))
-        outbox.put(("/transcripts", {"text": text.strip(), "source": "band"}))
+    """Deepgram calls this with a guess while someone speaks (final=False) and the settled
+    sentence after a pause (final=True). A guess that already holds a trigger ("get the
+    check", "taking my pill") is sent at once, so the reminder does not wait for the pause."""
+    text = text.strip()
+    if not text:
+        return
+    if not final:
+        if early["sent"] is None and detector.keywords(text) and not detector.is_question(text):
+            early["sent"] = text
+            print("heard (early):", kit.plain(text), flush=True)
+            outbox.put(("/transcripts", {"text": text, "source": "band"}))
+        return
+    sent, early["sent"] = early["sent"], None
+    if sent is not None:
+        before = {e[:2] for e in detector.keywords(sent)}
+        if not ({e[:2] for e in detector.keywords(text)} - before):
+            return                              # the full sentence adds nothing to what was sent early
+    print("heard:", kit.plain(text), flush=True)
+    outbox.put(("/transcripts", {"text": text, "source": "band"}))
 
 
 if opts.say:                                    # typed words: no band needed
@@ -101,7 +123,7 @@ def open_ears():
     """A Deepgram connection. If the network is down, keep trying every 5 seconds."""
     while not stopping.is_set():
         try:
-            live["ears"] = speech.create().start(heard)
+            live["ears"] = speech.create(keyterm="pill").start(heard)   # helps it hear "pill", not "appeal"
             return
         except Exception as error:
             print("Deepgram not reachable (%s). Trying again in 5 s." % error, flush=True)
